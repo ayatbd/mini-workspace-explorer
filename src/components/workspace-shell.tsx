@@ -1,87 +1,23 @@
 "use client";
 
+import { useState } from "react";
+
+import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import { useWorkspaceItems } from "@/hooks/use-workspace-items";
-import { workspaceRoot } from "@/lib/filesystem";
 import { useWorkspace } from "@/state/workspace-context";
-import type { FileSystemItem } from "@/types/filesystem";
 
-function Icon({ children }: { children: React.ReactNode }) {
-  return (
-    <span aria-hidden="true" className="icon">
-      {children}
-    </span>
-  );
-}
-
-function SidebarItem({ item }: { item: FileSystemItem }) {
-  const { selectedItem, selectItem } = useWorkspace();
-  const isSelected = selectedItem.id === item.id;
-
-  return (
-    <button
-      className={`tree-item ${isSelected ? "tree-item-selected" : ""}`}
-      onClick={() => selectItem(item)}
-      type="button"
-    >
-      <Icon>{isSelected ? "⌄" : "›"}</Icon>
-      <span className="tree-folder-icon">▰</span>
-      <span>{item.name}</span>
-    </button>
-  );
-}
-
-function Sidebar() {
-  const { selectedItem, selectItem } = useWorkspace();
-  const { items } = useWorkspaceItems();
-  const folders = items.filter((item) => item.type === "folder");
-
-  return (
-    <aside className="sidebar" aria-label="Workspace navigation">
-      <div className="sidebar-heading">
-        <div>
-          <p className="eyebrow">Workspace</p>
-          <h2>Explorer</h2>
-        </div>
-        <button
-          className="icon-button"
-          aria-label="More workspace options"
-          type="button"
-        >
-          •••
-        </button>
-      </div>
-      <div className="tree" role="tree">
-        <button
-          className={`tree-item ${selectedItem.id === "root" ? "tree-item-selected" : ""}`}
-          aria-selected={selectedItem.id === "root"}
-          onClick={() => selectItem(workspaceRoot)}
-          role="treeitem"
-          type="button"
-        >
-          <Icon>⌄</Icon>
-          <span className="tree-folder-icon">▰</span>
-          <span>Workspace</span>
-        </button>
-        <div className="tree-children">
-          {folders.map((item) => (
-            <SidebarItem item={item} key={item.id} />
-          ))}
-        </div>
-      </div>
-      <div className="sidebar-footer">
-        <span className="status-dot" />
-        <span>Local workspace</span>
-        <span className="footer-spacer" />
-        <span className="muted-label">Ready</span>
-      </div>
-    </aside>
-  );
-}
-
-function Header() {
+function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
   return (
     <header className="toolbar">
       <div className="mobile-brand">
+        <button
+          className="icon-button mobile-menu-button"
+          aria-label="Open workspace navigation"
+          onClick={onOpenSidebar}
+          type="button"
+        >
+          ☰
+        </button>
         <span className="brand-mark">✦</span>
         <span>Mini Workspace</span>
       </div>
@@ -215,12 +151,16 @@ function FileView() {
 
 export function WorkspaceShell() {
   const { view } = useWorkspace();
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="app-shell">
-      <Sidebar />
+      <WorkspaceSidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
       <main className="main-area">
-        <Header />
+        <Header onOpenSidebar={() => setSidebarOpen(true)} />
         {view === "file" ? <FileView /> : <FolderView />}
       </main>
     </div>

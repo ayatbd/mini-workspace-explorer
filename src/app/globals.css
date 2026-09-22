@@ -101,7 +101,8 @@ button {
 }
 
 .tree-item {
-    width: 100%;
+    min-width: 0;
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 9px;
@@ -111,6 +112,37 @@ button {
     color: #506058;
     padding: 9px 10px;
     text-align: left;
+}
+
+.tree-row {
+    display: flex;
+    align-items: center;
+    margin-left: calc(var(--tree-depth, 0) * 18px);
+    border-radius: 7px;
+}
+
+.tree-row>.tree-item {
+    padding-left: 5px;
+}
+
+.tree-toggle {
+    width: 25px;
+    flex: 0 0 25px;
+    border: 0;
+    background: transparent;
+    color: #94a39a;
+    padding: 8px 0;
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+}
+
+.tree-toggle:disabled {
+    cursor: default;
+}
+
+.tree-toggle:not(:disabled):hover,
+.tree-toggle:focus-visible {
+    color: var(--accent);
 }
 
 .tree-item:hover {
@@ -136,8 +168,23 @@ button {
 }
 
 .tree-children {
-    padding-left: 23px;
     margin-top: 3px;
+}
+
+.tree-empty {
+    margin: 12px 10px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.sidebar-backdrop {
+    display: none;
+}
+
+.sidebar .icon-button {
+    display: none;
 }
 
 .sidebar-footer {
@@ -465,7 +512,31 @@ button {
 
 @media (max-width: 720px) {
     .sidebar {
-        display: none;
+        position: fixed;
+        z-index: 20;
+        inset: 0 auto 0 0;
+        display: flex;
+        width: min(290px, 84vw);
+        transform: translateX(-100%);
+        box-shadow: 12px 0 32px rgba(23, 35, 31, .14);
+        transition: transform .2s ease;
+    }
+
+    .sidebar.sidebar-open {
+        transform: translateX(0);
+    }
+
+    .sidebar-backdrop {
+        position: fixed;
+        z-index: 19;
+        inset: 0;
+        display: block;
+        border: 0;
+        background: rgba(23, 35, 31, .28);
+    }
+
+    .sidebar .icon-button {
+        display: block;
     }
 
     .toolbar {
@@ -475,6 +546,13 @@ button {
 
     .mobile-brand {
         display: flex;
+    }
+
+    .mobile-menu-button {
+        display: block;
+        margin-left: -8px;
+        padding-right: 8px;
+        padding-left: 8px;
     }
 
     .search-field {

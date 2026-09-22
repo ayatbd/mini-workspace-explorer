@@ -67,7 +67,21 @@ function nameError(name: string) { const trimmed = name.trim(); if (!trimmed) re
 function duplicate(state: WorkspaceState, parentId: string, name: string, ignoredId?: string) { return getChildren({ rootId: state.rootId, items: state.items }, parentId).some((item) => item.id !== ignoredId && item.name.toLowerCase() === name.toLowerCase()); }
 function newId(items: Record<string, FileSystemItem>) { let id = globalThis.crypto?.randomUUID?.(); while (!id || items[id]) id = `item-${Date.now()}-${Math.random().toString(36).slice(2)}`; return id; }
 
-export const selectFolder = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (!folder(getState().workspace, id)) return fail("That folder no longer exists."); dispatch(actions.selectFolder(id)); return ok(); };
+export const selectFolder = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => {
+    const state = getState().workspace;
+    if (!folder(state, id)) return fail("That folder no longer exists.");
+
+    const ancestors: string[] = [];
+    let current = state.items[id];
+    while (current.parentId) {
+        ancestors.push(current.parentId);
+        current = state.items[current.parentId]!;
+    }
+
+    dispatch(actions.selectFolder(id));
+    for (const ancestorId of ancestors) dispatch(actions.expandFolder(ancestorId));
+    return ok();
+};
 export const openFile = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (getState().workspace.items[id]?.type !== "file") return fail("That text file no longer exists."); dispatch(actions.openFile(id)); return ok(); };
 export const closeFileEditor = () => (dispatch: AppDispatch) => { dispatch(actions.closeFileEditor()); return ok(); };
 export const expandFolder = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (!folder(getState().workspace, id)) return fail("That folder no longer exists."); dispatch(actions.expandFolder(id)); return ok(); };
