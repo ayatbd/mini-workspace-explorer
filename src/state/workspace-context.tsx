@@ -1,8 +1,15 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
+import { Provider } from "react-redux";
 
-import { workspaceRoot } from "@/lib/filesystem";
+import { store } from "@/state/store";
+import {
+  openFile,
+  selectFolder,
+  useWorkspaceDispatch,
+  useWorkspaceSelector,
+} from "@/state/workspace-store";
 import type { FileSystemItem, WorkspaceView } from "@/types/filesystem";
 
 type WorkspaceContextValue = {
@@ -14,8 +21,25 @@ type WorkspaceContextValue = {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [selectedItem, setSelectedItem] =
-    useState<FileSystemItem>(workspaceRoot);
+  return (
+    <Provider store={store}>
+      <WorkspaceContextBridge>{children}</WorkspaceContextBridge>
+    </Provider>
+  );
+}
+
+function WorkspaceContextBridge({ children }: { children: ReactNode }) {
+  const dispatch = useWorkspaceDispatch();
+  const selectedFolderId = useWorkspaceSelector(
+    (state) => state.workspace.selectedFolderId,
+  );
+  const openedFileId = useWorkspaceSelector(
+    (state) => state.workspace.openedFileId,
+  );
+  const items = useWorkspaceSelector((state) => state.workspace.items);
+  const selectedItem = items[openedFileId ?? selectedFolderId];
+
+  if (!selectedItem) return null;
 
   const view: WorkspaceView = selectedItem.type === "file" ? "file" : "folder";
 
@@ -24,7 +48,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       value={{
         selectedItem,
         view,
-        selectItem: setSelectedItem,
+        selectItem: (item) => {
+          dispatch(
+            item.type === "file" ? openFile(item.id) : selectFolder(item.id),
+          );
+        },
       }}
     >
       {children}
