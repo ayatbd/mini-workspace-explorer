@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
+import { MainPanel } from "@/components/main-panel";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
-import { useWorkspaceItems } from "@/hooks/use-workspace-items";
 import { useWorkspace } from "@/state/workspace-context";
 
 function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
@@ -38,80 +38,6 @@ function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
         </div>
       </div>
     </header>
-  );
-}
-
-function FolderView() {
-  const { selectedItem } = useWorkspace();
-  const { items, isLoading, error } = useWorkspaceItems();
-  const children = items.filter((item) => item.parentId === selectedItem.id);
-
-  return (
-    <section className="content-view">
-      <div className="content-heading">
-        <div>
-          <p className="breadcrumb">
-            <span>Workspace</span>
-            <span>/</span>
-            <strong>{selectedItem.name}</strong>
-          </p>
-          <h1>{selectedItem.name}</h1>
-          <p className="subheading">{children.length} items in this folder</p>
-        </div>
-        <div className="view-actions">
-          <button className="icon-button" aria-label="Sort items" type="button">
-            ↕
-          </button>
-          <button
-            className="icon-button active-icon"
-            aria-label="Grid view"
-            type="button"
-          >
-            ⊞
-          </button>
-        </div>
-      </div>
-      {isLoading && (
-        <div className="state-panel">
-          <span className="loader" />
-          <h3>Loading workspace</h3>
-          <p>Preparing your files and folders.</p>
-        </div>
-      )}
-      {error && (
-        <div className="state-panel error-state">
-          <h3>Couldn’t load this folder</h3>
-          <p>{error}</p>
-        </div>
-      )}
-      {!isLoading && !error && children.length === 0 && (
-        <div className="state-panel">
-          <div className="empty-illustration">⌁</div>
-          <h3>This folder is empty</h3>
-          <p>New files and folders will appear here.</p>
-        </div>
-      )}
-      {!isLoading && !error && children.length > 0 && (
-        <div className="item-grid">
-          {children.map((item) => (
-            <button
-              className="item-card"
-              key={item.id}
-              onClick={() => undefined}
-              type="button"
-            >
-              <span className={`item-icon ${item.type}`}>
-                {item.type === "folder" ? "▰" : "▤"}
-              </span>
-              <span className="item-name">{item.name}</span>
-              <span className="item-meta">
-                {item.type === "folder" ? "Folder" : "Text file"}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -161,7 +87,7 @@ export function WorkspaceShell() {
       />
       <main className="main-area">
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
-        {view === "file" ? <FileView /> : <FolderView />}
+        {view === "file" ? <FileView /> : <MainPanel />}
       </main>
     </div>
   );
