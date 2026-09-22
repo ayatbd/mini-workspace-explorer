@@ -2,14 +2,8 @@
 
 import { createContext, useContext, useState, type ReactNode } from "react";
 
+import { workspaceRoot } from "@/lib/filesystem";
 import type { FileSystemItem, WorkspaceView } from "@/types/filesystem";
-
-const rootFolder: FileSystemItem = {
-  id: "root",
-  name: "Workspace",
-  type: "folder",
-  parentId: null,
-};
 
 type WorkspaceContextValue = {
   selectedItem: FileSystemItem;
@@ -20,7 +14,8 @@ type WorkspaceContextValue = {
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const [selectedItem, setSelectedItem] = useState<FileSystemItem>(rootFolder);
+  const [selectedItem, setSelectedItem] =
+    useState<FileSystemItem>(workspaceRoot);
 
   const view: WorkspaceView = selectedItem.type === "file" ? "file" : "folder";
 

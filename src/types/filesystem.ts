@@ -6,8 +6,13 @@ export type FileSystemItem = {
     type: FileSystemItemType;
     parentId: string | null;
     content?: string;
-    createdAt?: string;
-    updatedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type WorkspaceFileSystem = {
+    rootId: string;
+    items: Record<string, FileSystemItem>;
 };
 
 export type WorkspaceView = "folder" | "file" | "empty";

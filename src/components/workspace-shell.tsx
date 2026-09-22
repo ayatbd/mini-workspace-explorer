@@ -1,6 +1,7 @@
 "use client";
 
 import { useWorkspaceItems } from "@/hooks/use-workspace-items";
+import { workspaceRoot } from "@/lib/filesystem";
 import { useWorkspace } from "@/state/workspace-context";
 import type { FileSystemItem } from "@/types/filesystem";
 
@@ -53,14 +54,7 @@ function Sidebar() {
         <button
           className={`tree-item ${selectedItem.id === "root" ? "tree-item-selected" : ""}`}
           aria-selected={selectedItem.id === "root"}
-          onClick={() =>
-            selectItem({
-              id: "root",
-              name: "Workspace",
-              type: "folder",
-              parentId: null,
-            })
-          }
+          onClick={() => selectItem(workspaceRoot)}
           role="treeitem"
           type="button"
         >
