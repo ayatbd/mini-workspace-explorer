@@ -19,6 +19,7 @@ export type WorkspaceState = {
     searchQuery: string;
     hydrationStatus: WorkspaceHydrationStatus;
     editorDraft: string | null;
+    statusMessage: string | null;
 };
 
 const initialState: WorkspaceState = {
@@ -30,6 +31,7 @@ const initialState: WorkspaceState = {
     searchQuery: "",
     hydrationStatus: "hydrated",
     editorDraft: null,
+    statusMessage: null,
 };
 
 const workspaceSlice = createSlice({
@@ -43,17 +45,21 @@ const workspaceSlice = createSlice({
         collapseFolder(state, action: PayloadAction<string>) { state.expandedFolderIds = state.expandedFolderIds.filter((id) => id !== action.payload); },
         createItem(state, action: PayloadAction<FileSystemItem>) { state.items[action.payload.id] = action.payload; if (!state.expandedFolderIds.includes(action.payload.parentId!)) state.expandedFolderIds.push(action.payload.parentId!); },
         renameItem(state, action: PayloadAction<{ itemId: string; name: string }>) { const item = state.items[action.payload.itemId]; if (item) { item.name = action.payload.name; item.updatedAt = new Date().toISOString(); } },
-        deleteItems(state, action: PayloadAction<{ deletedIds: string[]; parentId: string }>) {
+        deleteItems(state, action: PayloadAction<{ deletedIds: string[]; selectedFolderId: string; closeEditor: boolean }>) {
             const deletedIds = new Set(action.payload.deletedIds);
             for (const id of deletedIds) delete state.items[id];
-            if (deletedIds.has(state.selectedFolderId)) state.selectedFolderId = action.payload.parentId;
-            if (state.openedFileId && deletedIds.has(state.openedFileId)) { state.openedFileId = null; state.editorDraft = null; }
+            state.selectedFolderId = action.payload.selectedFolderId;
+            if (action.payload.closeEditor || (state.openedFileId && deletedIds.has(state.openedFileId))) {
+                state.openedFileId = null;
+                state.editorDraft = null;
+            }
             state.expandedFolderIds = state.expandedFolderIds.filter((id) => !deletedIds.has(id));
         },
         updateFileContent(state, action: PayloadAction<{ fileId: string; content: string }>) { const file = state.items[action.payload.fileId]; if (file?.type === "file") { file.content = action.payload.content; file.updatedAt = new Date().toISOString(); state.editorDraft = null; } },
         setEditorDraft(state, action: PayloadAction<string>) { state.editorDraft = action.payload; },
         resetWorkspace(_state, action: PayloadAction<WorkspaceFileSystem>) { return { ...initialState, items: action.payload.items, rootId: action.payload.rootId, selectedFolderId: action.payload.rootId, expandedFolderIds: [action.payload.rootId] }; },
         setSearchQuery(state, action: PayloadAction<string>) { state.searchQuery = action.payload; },
+        setStatusMessage(state, action: PayloadAction<string | null>) { state.statusMessage = action.payload; },
     },
 });
 
@@ -66,6 +72,25 @@ function folder(state: WorkspaceState, id: string) { const item = state.items[id
 function nameError(name: string) { const trimmed = name.trim(); if (!trimmed) return "Name cannot be empty."; if (trimmed === "." || trimmed === "..") return "Name cannot be . or .."; if (/[\\/]/.test(trimmed)) return "Name cannot contain path separators."; return undefined; }
 function duplicate(state: WorkspaceState, parentId: string, name: string, ignoredId?: string) { return getChildren({ rootId: state.rootId, items: state.items }, parentId).some((item) => item.id !== ignoredId && item.name.toLowerCase() === name.toLowerCase()); }
 function newId(items: Record<string, FileSystemItem>) { let id = globalThis.crypto?.randomUUID?.(); while (!id || items[id]) id = `item-${Date.now()}-${Math.random().toString(36).slice(2)}`; return id; }
+function nearestValidFolder(state: WorkspaceState, startId: string | null | undefined, deletedIds: Set<string>) {
+    let current = startId ?? state.rootId;
+    while (current && deletedIds.has(current)) {
+        current = state.items[current]?.parentId ?? state.rootId;
+        if (current === state.rootId) break;
+    }
+    if (!current || deletedIds.has(current)) return state.rootId;
+    const item = state.items[current];
+    if (!item || item.type !== "folder") {
+        const parentId = item?.parentId;
+        return parentId && !deletedIds.has(parentId) ? parentId : state.rootId;
+    }
+    return current;
+}
+function describeDelete(item: FileSystemItem, nestedCount: number) {
+    if (item.type === "file") return `Deleted "${item.name}".`;
+    if (nestedCount === 0) return `Deleted empty folder "${item.name}".`;
+    return `Deleted "${item.name}" and ${nestedCount} nested item${nestedCount === 1 ? "" : "s"}.`;
+}
 
 export const selectFolder = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState().workspace;
@@ -91,12 +116,80 @@ export const toggleFolderExpansion = (id: string) => (dispatch: AppDispatch, get
 function createItem(parentId: string, name: string, type: "folder" | "file", content = "") { return (dispatch: AppDispatch, getState: () => RootState): WorkspaceActionResult<string> => { const state = getState().workspace; const trimmed = name.trim(); const error = nameError(name); if (!folder(state, parentId)) return { success: false, error: "Choose an existing folder." }; if (error) return { success: false, error }; if (duplicate(state, parentId, trimmed)) return { success: false, error: "An item with that name already exists in this folder." }; const id = newId(state.items); const timestamp = new Date().toISOString(); dispatch(actions.createItem({ id, name: trimmed, type, parentId, createdAt: timestamp, updatedAt: timestamp, ...(type === "file" ? { content } : {}) })); return { success: true, value: id }; }; }
 export const createFolder = (parentId: string, name: string) => createItem(parentId, name, "folder");
 export const createTextFile = (parentId: string, name: string, content = "") => createItem(parentId, name, "file", content);
-export const renameItem = (itemId: string, name: string) => (dispatch: AppDispatch, getState: () => RootState) => { const state = getState().workspace; const item = state.items[itemId]; const trimmed = name.trim(); const error = nameError(name); if (!item) return fail("That item no longer exists."); if (itemId === state.rootId) return fail("The workspace folder cannot be renamed."); if (error) return fail(error); if (duplicate(state, item.parentId!, trimmed, itemId)) return fail("An item with that name already exists in this folder."); dispatch(actions.renameItem({ itemId, name: trimmed })); return ok(); };
-export const deleteItem = (itemId: string) => (dispatch: AppDispatch, getState: () => RootState) => { const state = getState().workspace; const item = state.items[itemId]; if (!item) return fail("That item no longer exists."); if (itemId === state.rootId) return fail("The workspace folder cannot be deleted."); const deletedIds = [itemId, ...getDescendants({ rootId: state.rootId, items: state.items }, itemId).map((descendant) => descendant.id)]; dispatch(actions.deleteItems({ deletedIds, parentId: item.parentId ?? state.rootId })); return ok(); };
+export const renameItem = (itemId: string, name: string) => (dispatch: AppDispatch, getState: () => RootState) => {
+    const state = getState().workspace;
+    const item = state.items[itemId];
+    const trimmed = name.trim();
+    const error = nameError(name);
+    if (!item) return fail("That item no longer exists.");
+    if (itemId === state.rootId) return fail("The workspace folder cannot be renamed.");
+    if (error) return fail(error);
+    if (duplicate(state, item.parentId!, trimmed, itemId)) {
+        return fail("An item with that name already exists in this folder.");
+    }
+    dispatch(actions.renameItem({ itemId, name: trimmed }));
+    dispatch(actions.setStatusMessage(`Renamed to "${trimmed}".`));
+    return ok();
+};
+export const deleteItem = (itemId: string) => (dispatch: AppDispatch, getState: () => RootState): WorkspaceActionResult<number> => {
+    const state = getState().workspace;
+    const item = state.items[itemId];
+    if (!item) return { success: false, error: "That item no longer exists." };
+    if (itemId === state.rootId) return { success: false, error: "The workspace folder cannot be deleted." };
+
+    const descendants = getDescendants({ rootId: state.rootId, items: state.items }, itemId);
+    const deletedIds = [itemId, ...descendants.map((descendant) => descendant.id)];
+    const deletedSet = new Set(deletedIds);
+    const parentId = item.parentId ?? state.rootId;
+
+    let selectedFolderId = state.selectedFolderId;
+    let closeEditor = false;
+
+    if (state.openedFileId && deletedSet.has(state.openedFileId)) {
+        closeEditor = true;
+        const openedParentId = state.items[state.openedFileId]?.parentId ?? parentId;
+        selectedFolderId = nearestValidFolder(state, openedParentId, deletedSet);
+    }
+
+    if (deletedSet.has(selectedFolderId)) {
+        selectedFolderId = nearestValidFolder(state, parentId, deletedSet);
+    }
+
+    dispatch(actions.deleteItems({ deletedIds, selectedFolderId, closeEditor }));
+    dispatch(actions.setStatusMessage(describeDelete(item, descendants.length)));
+    return { success: true, value: deletedIds.length };
+};
 export const updateFileContent = (fileId: string, content: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (getState().workspace.items[fileId]?.type !== "file") return fail("That text file no longer exists."); dispatch(actions.updateFileContent({ fileId, content })); return ok(); };
 export const setEditorDraft = (content: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (!getState().workspace.openedFileId) return fail("Open a text file before editing."); dispatch(actions.setEditorDraft(content)); return ok(); };
 export const resetWorkspace = (workspace = starterWorkspace) => (dispatch: AppDispatch) => { dispatch(actions.resetWorkspace(workspace)); return ok(); };
 export const setSearchQuery = (query: string) => (dispatch: AppDispatch) => { dispatch(actions.setSearchQuery(query)); return ok(); };
+export const setStatusMessage = (message: string | null) => (dispatch: AppDispatch) => {
+    dispatch(actions.setStatusMessage(message));
+    return ok();
+};
+export function getDeleteWarning(item: FileSystemItem, nestedCount: number) {
+    if (item.type === "file") {
+        return `Delete "${item.name}"? This cannot be undone.`;
+    }
+    if (nestedCount === 0) {
+        return `Delete empty folder "${item.name}"? This cannot be undone.`;
+    }
+    return `Delete folder "${item.name}" and all ${nestedCount} nested item${nestedCount === 1 ? "" : "s"}?\n\nThis permanently removes the folder and every nested folder and file.`;
+}
+
+export function confirmAndDeleteItem(
+    item: FileSystemItem,
+    nestedCount: number,
+    dispatch: AppDispatch,
+) {
+    if (!window.confirm(getDeleteWarning(item, nestedCount))) return false;
+    const result = dispatch(deleteItem(item.id));
+    if (!result.success) {
+        dispatch(setStatusMessage(result.error ?? "Could not delete that item."));
+        return false;
+    }
+    return true;
+}
 
 export const useWorkspaceDispatch: () => AppDispatch = useDispatch;
 export const useWorkspaceSelector: TypedUseSelectorHook<RootState> = useSelector;

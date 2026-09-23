@@ -213,8 +213,10 @@ button {
 }
 
 .main-area {
+    display: flex;
     min-width: 0;
     flex: 1;
+    flex-direction: column;
 }
 
 .toolbar {
@@ -540,13 +542,36 @@ button {
     display: flex;
     min-height: 150px;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     border: 1px solid var(--line);
     border-radius: 9px;
     background: var(--panel);
-    padding: 18px;
+    padding: 12px;
     text-align: left;
     transition: border-color .2s, transform .2s;
+}
+
+.item-card-main {
+    display: flex;
+    min-height: 110px;
+    flex: 1;
+    flex-direction: column;
+    align-items: flex-start;
+    border: 0;
+    background: transparent;
+    padding: 6px;
+    text-align: left;
+}
+
+.item-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.item-card-actions .panel-action {
+    flex: 1;
+    padding: 7px 8px;
 }
 
 .item-card:hover {
@@ -558,6 +583,18 @@ button {
     border-color: var(--accent);
     background: var(--accent-soft);
     box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.status-banner {
+    margin: 0 28px 0;
+    border: 1px solid #9bc2a7;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    color: var(--accent);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .item-icon {

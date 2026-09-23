@@ -10,15 +10,16 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import { buildPath, sortChildren } from "@/lib/filesystem";
+import { buildPath, getDescendants, sortChildren } from "@/lib/filesystem";
 import {
   createFolder,
   createTextFile,
-  deleteItem,
+  confirmAndDeleteItem,
   openFile,
   renameItem,
   selectFolder,
   setSearchQuery,
+  setStatusMessage,
   useWorkspaceDispatch,
   useWorkspaceSelector,
 } from "@/state/workspace-store";
@@ -116,26 +117,48 @@ function FileListItem({
   item,
   highlighted,
   onOpen,
+  onRename,
+  onDelete,
 }: {
   item: FileSystemItem;
   highlighted: boolean;
   onOpen: (item: FileSystemItem) => void;
+  onRename: (item: FileSystemItem) => void;
+  onDelete: (item: FileSystemItem) => void;
 }) {
   return (
-    <button
+    <div
       className={`item-card${highlighted ? " item-card-highlighted" : ""}`}
       aria-current={highlighted ? "true" : undefined}
-      onClick={() => onOpen(item)}
-      type="button"
     >
-      <span className={`item-icon ${item.type}`} aria-hidden="true">
-        {item.type === "folder" ? "▰" : "▤"}
-      </span>
-      <span className="item-name">{item.name}</span>
-      <span className="item-meta">
-        {item.type === "folder" ? "Folder" : "Text file"}
-      </span>
-    </button>
+      <button className="item-card-main" onClick={() => onOpen(item)} type="button">
+        <span className={`item-icon ${item.type}`} aria-hidden="true">
+          {item.type === "folder" ? "▰" : "▤"}
+        </span>
+        <span className="item-name">{item.name}</span>
+        <span className="item-meta">
+          {item.type === "folder" ? "Folder" : "Text file"}
+        </span>
+      </button>
+      <div className="item-card-actions">
+        <button
+          className="panel-action"
+          onClick={() => onRename(item)}
+          type="button"
+          aria-label={`Rename ${item.name}`}
+        >
+          Rename
+        </button>
+        <button
+          className="panel-action danger-action"
+          onClick={() => onDelete(item)}
+          type="button"
+          aria-label={`Delete ${item.name}`}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -143,10 +166,14 @@ function FileList({
   items,
   highlightedItemId,
   onOpen,
+  onRename,
+  onDelete,
 }: {
   items: FileSystemItem[];
   highlightedItemId: string | null;
   onOpen: (item: FileSystemItem) => void;
+  onRename: (item: FileSystemItem) => void;
+  onDelete: (item: FileSystemItem) => void;
 }) {
   return (
     <div className="item-grid" aria-label="Folder contents">
@@ -156,6 +183,8 @@ function FileList({
           highlighted={item.id === highlightedItemId}
           key={item.id}
           onOpen={onOpen}
+          onRename={onRename}
+          onDelete={onDelete}
         />
       ))}
     </div>
@@ -180,10 +209,12 @@ function EmptyFolderState({ completelyEmpty }: { completelyEmpty: boolean }) {
 
 function ItemForm({
   type,
+  itemId,
   onClose,
   onCreated,
 }: {
   type: "folder" | "file" | "rename";
+  itemId?: string;
   onClose: () => void;
   onCreated?: (id: string) => void;
 }) {
@@ -191,11 +222,11 @@ function ItemForm({
   const selectedFolderId = useWorkspaceSelector(
     (state) => state.workspace.selectedFolderId,
   );
-  const selectedItem = useWorkspaceSelector(
-    (state) => state.workspace.items[selectedFolderId],
+  const renameTarget = useWorkspaceSelector((state) =>
+    itemId ? state.workspace.items[itemId] : undefined,
   );
   const [name, setName] = useState(
-    type === "rename" ? (selectedItem?.name ?? "") : "",
+    type === "rename" ? (renameTarget?.name ?? "") : "",
   );
   const [error, setError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
@@ -235,10 +266,11 @@ function ItemForm({
         ? dispatch(createFolder(selectedFolderId, name))
         : type === "file"
           ? dispatch(createTextFile(selectedFolderId, name))
-          : dispatch(renameItem(selectedFolderId, name));
+          : dispatch(renameItem(itemId ?? selectedFolderId, name));
 
     if (result.success) {
       if (result.value) onCreated?.(result.value);
+      else if (type === "rename" && itemId) onCreated?.(itemId);
       onClose();
       return;
     }
@@ -314,11 +346,15 @@ export function MainPanel() {
   const [formType, setFormType] = useState<"folder" | "file" | "rename" | null>(
     null,
   );
+  const [renameItemId, setRenameItemId] = useState<string | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(
     null,
   );
   const [showSearch, setShowSearch] = useState(false);
-  const closeForm = useCallback(() => setFormType(null), []);
+  const closeForm = useCallback(() => {
+    setFormType(null);
+    setRenameItemId(null);
+  }, []);
   const folder = items[selectedFolderId];
   const children = useMemo(
     () =>
@@ -348,9 +384,19 @@ export function MainPanel() {
 
   if (!folder || folder.type !== "folder") return null;
 
-  function handleDelete() {
-    if (window.confirm(`Delete ${folder.name} and all of its contents?`))
-      dispatch(deleteItem(folder.id));
+  function handleDeleteItem(item: FileSystemItem) {
+    const nestedCount =
+      item.type === "folder"
+        ? getDescendants({ rootId, items }, item.id).length
+        : 0;
+    if (confirmAndDeleteItem(item, nestedCount, dispatch)) {
+      setHighlightedItemId(null);
+      closeForm();
+    }
+  }
+
+  function handleDeleteCurrentFolder() {
+    handleDeleteItem(folder);
   }
 
   function handleOpen(item: FileSystemItem) {
@@ -360,8 +406,19 @@ export function MainPanel() {
     );
   }
 
-  function openCreateForm(type: "folder" | "file" | "rename") {
+  function openCreateForm(type: "folder" | "file") {
+    setRenameItemId(null);
     setFormType(type);
+  }
+
+  function openRenameForm(item: FileSystemItem) {
+    if (item.id === rootId) {
+      dispatch(setStatusMessage("The workspace folder cannot be renamed."));
+      return;
+    }
+    setHighlightedItemId(item.id);
+    setRenameItemId(item.id);
+    setFormType("rename");
   }
 
   return (
@@ -370,8 +427,8 @@ export function MainPanel() {
         folder={folder}
         onNewFolder={() => openCreateForm("folder")}
         onNewFile={() => openCreateForm("file")}
-        onRename={() => openCreateForm("rename")}
-        onDelete={handleDelete}
+        onRename={() => openRenameForm(folder)}
+        onDelete={handleDeleteCurrentFolder}
         onSearch={() => setShowSearch((visible) => !visible)}
       />
       <h1 className="sr-only" id="folder-title">
@@ -391,6 +448,7 @@ export function MainPanel() {
       )}
       {formType && (
         <ItemForm
+          itemId={formType === "rename" ? (renameItemId ?? undefined) : undefined}
           onClose={closeForm}
           onCreated={setHighlightedItemId}
           type={formType}
@@ -410,6 +468,8 @@ export function MainPanel() {
           items={filteredChildren}
           highlightedItemId={highlightedItemId}
           onOpen={handleOpen}
+          onRename={openRenameForm}
+          onDelete={handleDeleteItem}
         />
       )}
     </section>

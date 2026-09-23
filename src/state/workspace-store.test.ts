@@ -5,6 +5,9 @@ import { ROOT_ID, emptyWorkspace } from "@/lib/filesystem";
 import {
   createFolder,
   createTextFile,
+  deleteItem,
+  openFile,
+  renameItem,
   resetWorkspace,
   selectFolder,
   workspaceReducer,
@@ -126,5 +129,154 @@ describe("createFolder / createTextFile", () => {
       content: "",
     });
     expect(state.selectedFolderId).toBe(parent.value);
+  });
+});
+
+describe("renameItem / deleteItem", () => {
+  let store: ReturnType<typeof createTestStore>;
+
+  beforeEach(() => {
+    store = createTestStore();
+  });
+
+  it("renames files and preserves content", () => {
+    const created = store.dispatch(
+      createTextFile(ROOT_ID, "notes.txt", "hello world"),
+    );
+    expect(created.success).toBe(true);
+
+    const result = store.dispatch(renameItem(created.value!, "  journal.txt  "));
+
+    expect(result.success).toBe(true);
+    const renamed = store.getState().workspace.items[created.value!];
+    expect(renamed).toMatchObject({
+      name: "journal.txt",
+      content: "hello world",
+      type: "file",
+      parentId: ROOT_ID,
+    });
+    expect(renamed.updatedAt).toEqual(expect.any(String));
+  });
+
+  it("renames folders", () => {
+    const created = store.dispatch(createFolder(ROOT_ID, "Drafts"));
+    expect(created.success).toBe(true);
+
+    const result = store.dispatch(renameItem(created.value!, "Archive"));
+
+    expect(result.success).toBe(true);
+    expect(store.getState().workspace.items[created.value!]?.name).toBe(
+      "Archive",
+    );
+  });
+
+  it("rejects duplicate rename names case-insensitively", () => {
+    const folder = store.dispatch(createFolder(ROOT_ID, "Notes"));
+    const file = store.dispatch(createTextFile(ROOT_ID, "todo.txt"));
+    expect(folder.success).toBe(true);
+    expect(file.success).toBe(true);
+
+    const duplicate = store.dispatch(renameItem(file.value!, "notes"));
+
+    expect(duplicate).toEqual({
+      success: false,
+      error: "An item with that name already exists in this folder.",
+    });
+    expect(store.getState().workspace.items[file.value!]?.name).toBe(
+      "todo.txt",
+    );
+  });
+
+  it("recursively deletes a folder and all nested contents", () => {
+    const parent = store.dispatch(createFolder(ROOT_ID, "Projects"));
+    const child = store.dispatch(createFolder(parent.value!, "App"));
+    const nestedFile = store.dispatch(
+      createTextFile(child.value!, "readme.txt", "nested"),
+    );
+    const siblingFile = store.dispatch(
+      createTextFile(parent.value!, "root.txt", "sibling"),
+    );
+
+    expect(parent.success).toBe(true);
+    expect(child.success).toBe(true);
+    expect(nestedFile.success).toBe(true);
+    expect(siblingFile.success).toBe(true);
+
+    const result = store.dispatch(deleteItem(parent.value!));
+
+    expect(result.success).toBe(true);
+    expect(result.value).toBe(4);
+
+    const state = store.getState().workspace;
+    expect(state.items[parent.value!]).toBeUndefined();
+    expect(state.items[child.value!]).toBeUndefined();
+    expect(state.items[nestedFile.value!]).toBeUndefined();
+    expect(state.items[siblingFile.value!]).toBeUndefined();
+    expect(Object.keys(state.items)).toEqual([ROOT_ID]);
+  });
+
+  it("navigates to the parent when the selected folder is deleted", () => {
+    const parent = store.dispatch(createFolder(ROOT_ID, "Documents"));
+    const child = store.dispatch(createFolder(parent.value!, "Letters"));
+    expect(parent.success).toBe(true);
+    expect(child.success).toBe(true);
+
+    store.dispatch(selectFolder(child.value!));
+    expect(store.getState().workspace.selectedFolderId).toBe(child.value);
+
+    const result = store.dispatch(deleteItem(child.value!));
+
+    expect(result.success).toBe(true);
+    const state = store.getState().workspace;
+    expect(state.selectedFolderId).toBe(parent.value);
+    expect(state.items[child.value!]).toBeUndefined();
+    expect(state.expandedFolderIds).not.toContain(child.value);
+  });
+
+  it("closes the editor and navigates to the parent when an opened file is deleted", () => {
+    const folder = store.dispatch(createFolder(ROOT_ID, "Docs"));
+    const file = store.dispatch(
+      createTextFile(folder.value!, "open.txt", "draft"),
+    );
+    expect(folder.success).toBe(true);
+    expect(file.success).toBe(true);
+
+    store.dispatch(selectFolder(folder.value!));
+    store.dispatch(openFile(file.value!));
+
+    expect(store.getState().workspace.openedFileId).toBe(file.value);
+
+    const result = store.dispatch(deleteItem(file.value!));
+
+    expect(result.success).toBe(true);
+    const state = store.getState().workspace;
+    expect(state.openedFileId).toBeNull();
+    expect(state.editorDraft).toBeNull();
+    expect(state.selectedFolderId).toBe(folder.value);
+    expect(state.items[file.value!]).toBeUndefined();
+  });
+
+  it("prevents deleting the root workspace folder", () => {
+    const folder = store.dispatch(createFolder(ROOT_ID, "Keep"));
+    expect(folder.success).toBe(true);
+
+    const result = store.dispatch(deleteItem(ROOT_ID));
+
+    expect(result).toEqual({
+      success: false,
+      error: "The workspace folder cannot be deleted.",
+    });
+    expect(store.getState().workspace.items[ROOT_ID]).toBeTruthy();
+    expect(store.getState().workspace.items[folder.value!]).toBeTruthy();
+  });
+
+  it("prevents renaming the root workspace folder", () => {
+    const result = store.dispatch(renameItem(ROOT_ID, "Home"));
+
+    expect(result).toEqual({
+      success: false,
+      error: "The workspace folder cannot be renamed.",
+    });
+    expect(store.getState().workspace.items[ROOT_ID]?.name).toBe("Workspace");
   });
 });
