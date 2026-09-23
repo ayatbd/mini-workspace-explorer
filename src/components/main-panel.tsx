@@ -10,11 +10,12 @@ import {
   type KeyboardEvent,
 } from "react";
 
+import { focusWorkspaceSearch } from "@/components/workspace-search";
 import { buildPath, getDescendants, sortChildren } from "@/lib/filesystem";
 import {
+  confirmAndDeleteItem,
   createFolder,
   createTextFile,
-  confirmAndDeleteItem,
   openFile,
   renameItem,
   selectFolder,
@@ -23,7 +24,6 @@ import {
   useWorkspaceSelector,
 } from "@/state/workspace-store";
 import type { FileSystemItem } from "@/types/filesystem";
-import { focusWorkspaceSearch } from "@/components/workspace-search";
 
 function FolderHeader({
   folder,
@@ -131,7 +131,11 @@ function FileListItem({
       className={`item-card${highlighted ? " item-card-highlighted" : ""}`}
       aria-current={highlighted ? "true" : undefined}
     >
-      <button className="item-card-main" onClick={() => onOpen(item)} type="button">
+      <button
+        className="item-card-main"
+        onClick={() => onOpen(item)}
+        type="button"
+      >
         <span className={`item-icon ${item.type}`} aria-hidden="true">
           {item.type === "folder" ? "▰" : "▤"}
         </span>
@@ -364,14 +368,11 @@ export function MainPanel() {
   const isCompletelyEmpty =
     Object.keys(items).length === 1 && selectedFolderId === rootId;
 
-  useEffect(() => {
-    if (
-      highlightedItemId &&
-      !children.some((item) => item.id === highlightedItemId)
-    ) {
-      setHighlightedItemId(null);
-    }
-  }, [children, highlightedItemId]);
+  const visibleHighlightedItemId = children.some(
+    (item) => item.id === highlightedItemId,
+  )
+    ? highlightedItemId
+    : null;
 
   if (!folder || folder.type !== "folder") return null;
 
@@ -427,7 +428,9 @@ export function MainPanel() {
       </h1>
       {formType && (
         <ItemForm
-          itemId={formType === "rename" ? (renameItemId ?? undefined) : undefined}
+          itemId={
+            formType === "rename" ? (renameItemId ?? undefined) : undefined
+          }
           onClose={closeForm}
           onCreated={setHighlightedItemId}
           type={formType}
@@ -442,7 +445,7 @@ export function MainPanel() {
       ) : (
         <FileList
           items={children}
-          highlightedItemId={highlightedItemId}
+          highlightedItemId={visibleHighlightedItemId}
           onOpen={handleOpen}
           onRename={openRenameForm}
           onDelete={handleDeleteItem}

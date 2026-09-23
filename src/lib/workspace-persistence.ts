@@ -33,9 +33,29 @@ export function isValidPersistedWorkspace(
   const root = data.items[data.rootId];
   if (!root || root.type !== "folder" || root.parentId !== null) return false;
 
-  return Object.entries(data.items).every(
+  const hasValidItems = Object.entries(data.items).every(
     ([id, item]) => id === item.id && isFileSystemItem(item),
   );
+  if (!hasValidItems) return false;
+
+  for (const item of Object.values(data.items)) {
+    if (item.id === data.rootId) continue;
+    const parent = item.parentId ? data.items[item.parentId] : undefined;
+    if (!parent || parent.type !== "folder") return false;
+  }
+
+  for (const item of Object.values(data.items)) {
+    const visited = new Set<string>();
+    let current: FileSystemItem | undefined = item;
+    while (current && current.id !== data.rootId) {
+      if (visited.has(current.id)) return false;
+      visited.add(current.id);
+      current = current.parentId ? data.items[current.parentId] : undefined;
+    }
+    if (!current) return false;
+  }
+
+  return true;
 }
 
 export function loadPersistedWorkspace(): WorkspaceFileSystem | null {

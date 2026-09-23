@@ -10,7 +10,10 @@ import {
 } from "react";
 
 import { MainPanel } from "@/components/main-panel";
-import { WorkspaceSearch } from "@/components/workspace-search";
+import {
+  focusWorkspaceSearch,
+  WorkspaceSearch,
+} from "@/components/workspace-search";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import { buildPath } from "@/lib/filesystem";
 import { useEditorNavigation } from "@/state/editor-navigation";
@@ -44,7 +47,11 @@ function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
       </div>
       <WorkspaceSearch />
       <div className="toolbar-actions">
-        <button className="toolbar-button" type="button">
+        <button
+          className="toolbar-button"
+          onClick={focusWorkspaceSearch}
+          type="button"
+        >
           <span>＋</span> New
         </button>
         <button className="icon-button" aria-label="Settings" type="button">
@@ -201,10 +208,7 @@ function FileBreadcrumbs({
             {isLast || item.type === "file" ? (
               <strong className="breadcrumb-current">{item.name}</strong>
             ) : (
-              <button
-                onClick={() => onNavigateFolder(item.id)}
-                type="button"
-              >
+              <button onClick={() => onNavigateFolder(item.id)} type="button">
                 {item.name}
               </button>
             )}
@@ -224,21 +228,18 @@ function FileView() {
     (state) => state.workspace.editorDraft,
   );
   const [isRenaming, setIsRenaming] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
+  const [savedFileId, setSavedFileId] = useState<string | null>(null);
   const closeRename = useCallback(() => setIsRenaming(false), []);
 
   const savedContent = selectedItem.content ?? "";
   const value = editorDraft ?? savedContent;
   const isDirty = editorDraft !== null && editorDraft !== savedContent;
+  const justSaved = savedFileId === selectedItem.id;
   const isEmpty = value.length === 0;
 
   useEffect(() => {
-    if (isDirty) setJustSaved(false);
-  }, [isDirty]);
-
-  useEffect(() => {
     if (!justSaved) return;
-    const timer = window.setTimeout(() => setJustSaved(false), 2500);
+    const timer = window.setTimeout(() => setSavedFileId(null), 2500);
     return () => window.clearTimeout(timer);
   }, [justSaved]);
 
@@ -255,7 +256,7 @@ function FileView() {
 
     const result = dispatch(updateFileContent(selectedItem.id, value));
     if (result.success) {
-      setJustSaved(true);
+      setSavedFileId(selectedItem.id);
       dispatch(setStatusMessage(`Saved "${selectedItem.name}".`));
       return;
     }

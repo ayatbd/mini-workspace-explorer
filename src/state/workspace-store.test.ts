@@ -56,6 +56,14 @@ describe("createFolder / createTextFile", () => {
     expect(Object.keys(store.getState().workspace.items)).toEqual([ROOT_ID]);
   });
 
+  it("rejects path separators and dot names", () => {
+    for (const name of [".", "..", "nested/file", "nested\\file"]) {
+      const result = store.dispatch(createFolder(ROOT_ID, name));
+      expect(result.success).toBe(false);
+      expect(result.error).toBeTruthy();
+    }
+  });
+
   it("rejects duplicate names within the same parent folder", () => {
     const first = store.dispatch(createFolder(ROOT_ID, "Notes"));
     expect(first.success).toBe(true);
@@ -187,6 +195,30 @@ describe("renameItem / deleteItem", () => {
     expect(store.getState().workspace.items[file.value!]?.name).toBe(
       "todo.txt",
     );
+  });
+
+  it("rejects invalid rename names and preserves the original name", () => {
+    const file = store.dispatch(createTextFile(ROOT_ID, "todo.txt"));
+    expect(file.success).toBe(true);
+
+    for (const name of ["", "..", "folder/name"]) {
+      const result = store.dispatch(renameItem(file.value!, name));
+      expect(result.success).toBe(false);
+    }
+
+    expect(store.getState().workspace.items[file.value!]?.name).toBe("todo.txt");
+  });
+
+  it("falls back to the nearest surviving folder after deleting a selected folder", () => {
+    const parent = store.dispatch(createFolder(ROOT_ID, "Documents"));
+    const child = store.dispatch(createFolder(parent.value!, "Letters"));
+    expect(parent.success).toBe(true);
+    expect(child.success).toBe(true);
+
+    store.dispatch(selectFolder(child.value!));
+    store.dispatch(deleteItem(parent.value!));
+
+    expect(store.getState().workspace.selectedFolderId).toBe(ROOT_ID);
   });
 
   it("recursively deletes a folder and all nested contents", () => {

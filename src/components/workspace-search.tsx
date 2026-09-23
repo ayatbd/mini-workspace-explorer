@@ -9,7 +9,10 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import { searchWorkspace, type WorkspaceSearchResult } from "@/lib/workspace-search";
+import {
+  searchWorkspace,
+  type WorkspaceSearchResult,
+} from "@/lib/workspace-search";
 import { useEditorNavigation } from "@/state/editor-navigation";
 import {
   openFile,
@@ -43,10 +46,6 @@ export function WorkspaceSearch() {
     () => searchWorkspace({ rootId, items }, searchQuery),
     [items, rootId, searchQuery],
   );
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [trimmedQuery, results.length]);
 
   useEffect(() => {
     function handleGlobalKeyDown(event: globalThis.KeyboardEvent) {
@@ -127,8 +126,10 @@ export function WorkspaceSearch() {
     }
   }
 
+  const safeActiveIndex =
+    results.length > 0 ? Math.min(activeIndex, results.length - 1) : 0;
   const activeOptionId =
-    results.length > 0 ? resultOptionId(listId, activeIndex) : undefined;
+    results.length > 0 ? resultOptionId(listId, safeActiveIndex) : undefined;
 
   return (
     <div className="workspace-search" ref={panelRef}>
@@ -148,6 +149,7 @@ export function WorkspaceSearch() {
           value={searchQuery}
           onChange={(event) => {
             dispatch(setSearchQuery(event.target.value));
+            setActiveIndex(0);
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
@@ -173,7 +175,9 @@ export function WorkspaceSearch() {
             </div>
           ) : results.length === 0 ? (
             <div className="search-empty-state" role="status">
-              <p className="search-empty-title">No results for “{trimmedQuery}”</p>
+              <p className="search-empty-title">
+                No results for “{trimmedQuery}”
+              </p>
               <p>
                 Try another name, check spelling, or search for words inside a
                 text file.
@@ -182,7 +186,7 @@ export function WorkspaceSearch() {
           ) : (
             <ul className="search-results-list">
               {results.map((result, index) => {
-                const isActive = index === activeIndex;
+                const isActive = index === safeActiveIndex;
                 const typeLabel =
                   result.item.type === "folder" ? "Folder" : "Text file";
                 return (
@@ -207,7 +211,9 @@ export function WorkspaceSearch() {
                           {result.item.name}
                         </span>
                         <span className="search-result-meta">
-                          <span className="search-result-type">{typeLabel}</span>
+                          <span className="search-result-type">
+                            {typeLabel}
+                          </span>
                           {result.match === "content" && (
                             <span className="search-result-match">
                               Match in contents
