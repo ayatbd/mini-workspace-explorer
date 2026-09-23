@@ -341,4 +341,25 @@ describe("text file editor content", () => {
     expect(state.openedFileId).toBeNull();
     expect(state.items[file.value!]?.content).toBe("updated body");
   });
+
+  it("selects the parent folder and expands ancestors when opening a file", () => {
+    const parent = store.dispatch(createFolder(ROOT_ID, "Projects"));
+    const child = store.dispatch(createFolder(parent.value!, "Webbly"));
+    const file = store.dispatch(
+      createTextFile(child.value!, "notes.txt", "hi"),
+    );
+    expect(parent.success).toBe(true);
+    expect(child.success).toBe(true);
+    expect(file.success).toBe(true);
+
+    store.dispatch(selectFolder(ROOT_ID));
+    store.dispatch(openFile(file.value!));
+
+    const state = store.getState().workspace;
+    expect(state.openedFileId).toBe(file.value);
+    expect(state.selectedFolderId).toBe(child.value);
+    expect(state.expandedFolderIds).toEqual(
+      expect.arrayContaining([ROOT_ID, parent.value, child.value]),
+    );
+  });
 });

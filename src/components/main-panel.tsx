@@ -18,12 +18,12 @@ import {
   openFile,
   renameItem,
   selectFolder,
-  setSearchQuery,
   setStatusMessage,
   useWorkspaceDispatch,
   useWorkspaceSelector,
 } from "@/state/workspace-store";
 import type { FileSystemItem } from "@/types/filesystem";
+import { focusWorkspaceSearch } from "@/components/workspace-search";
 
 function FolderHeader({
   folder,
@@ -77,7 +77,7 @@ function FolderHeader({
         </button>
         <button
           className="icon-button"
-          aria-label="Search this workspace"
+          aria-label="Search workspace"
           onClick={onSearch}
           type="button"
         >
@@ -340,9 +340,6 @@ export function MainPanel() {
   const selectedFolderId = useWorkspaceSelector(
     (state) => state.workspace.selectedFolderId,
   );
-  const searchQuery = useWorkspaceSelector(
-    (state) => state.workspace.searchQuery,
-  );
   const [formType, setFormType] = useState<"folder" | "file" | "rename" | null>(
     null,
   );
@@ -350,7 +347,6 @@ export function MainPanel() {
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(
     null,
   );
-  const [showSearch, setShowSearch] = useState(false);
   const closeForm = useCallback(() => {
     setFormType(null);
     setRenameItemId(null);
@@ -365,11 +361,6 @@ export function MainPanel() {
       ),
     [items, selectedFolderId],
   );
-  const filteredChildren = searchQuery.trim()
-    ? children.filter((item) =>
-        item.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-      )
-    : children;
   const isCompletelyEmpty =
     Object.keys(items).length === 1 && selectedFolderId === rootId;
 
@@ -429,23 +420,11 @@ export function MainPanel() {
         onNewFile={() => openCreateForm("file")}
         onRename={() => openRenameForm(folder)}
         onDelete={handleDeleteCurrentFolder}
-        onSearch={() => setShowSearch((visible) => !visible)}
+        onSearch={focusWorkspaceSearch}
       />
       <h1 className="sr-only" id="folder-title">
         {folder.name}
       </h1>
-      {showSearch && (
-        <label className="panel-search">
-          <span>Search items</span>
-          <input
-            autoFocus
-            value={searchQuery}
-            onChange={(event) => dispatch(setSearchQuery(event.target.value))}
-            placeholder="Filter this folder"
-            type="search"
-          />
-        </label>
-      )}
       {formType && (
         <ItemForm
           itemId={formType === "rename" ? (renameItemId ?? undefined) : undefined}
@@ -455,17 +434,14 @@ export function MainPanel() {
         />
       )}
       <p className="subheading panel-count">
-        {filteredChildren.length}{" "}
-        {filteredChildren.length === 1 ? "item" : "items"}
-        {searchQuery ? " matching your search" : " in this folder"}
+        {children.length} {children.length === 1 ? "item" : "items"} in this
+        folder
       </p>
       {children.length === 0 ? (
         <EmptyFolderState completelyEmpty={isCompletelyEmpty} />
-      ) : filteredChildren.length === 0 ? (
-        <EmptyFolderState completelyEmpty={false} />
       ) : (
         <FileList
-          items={filteredChildren}
+          items={children}
           highlightedItemId={highlightedItemId}
           onOpen={handleOpen}
           onRename={openRenameForm}

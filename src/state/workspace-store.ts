@@ -39,7 +39,17 @@ const workspaceSlice = createSlice({
     initialState,
     reducers: {
         selectFolder(state, action: PayloadAction<string>) { state.selectedFolderId = action.payload; state.openedFileId = null; state.editorDraft = null; },
-        openFile(state, action: PayloadAction<string>) { state.openedFileId = action.payload; state.editorDraft = null; },
+        openFile(state, action: PayloadAction<string>) {
+            const file = state.items[action.payload];
+            state.openedFileId = action.payload;
+            state.editorDraft = null;
+            if (file?.type === "file") {
+                const parentId = file.parentId;
+                if (parentId && state.items[parentId]?.type === "folder") {
+                    state.selectedFolderId = parentId;
+                }
+            }
+        },
         closeFileEditor(state) { state.openedFileId = null; state.editorDraft = null; },
         expandFolder(state, action: PayloadAction<string>) { if (!state.expandedFolderIds.includes(action.payload)) state.expandedFolderIds.push(action.payload); },
         collapseFolder(state, action: PayloadAction<string>) { state.expandedFolderIds = state.expandedFolderIds.filter((id) => id !== action.payload); },
@@ -116,7 +126,22 @@ export const selectFolder = (id: string) => (dispatch: AppDispatch, getState: ()
     for (const ancestorId of ancestors) dispatch(actions.expandFolder(ancestorId));
     return ok();
 };
-export const openFile = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (getState().workspace.items[id]?.type !== "file") return fail("That text file no longer exists."); dispatch(actions.openFile(id)); return ok(); };
+export const openFile = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => {
+    const state = getState().workspace;
+    const item = state.items[id];
+    if (item?.type !== "file") return fail("That text file no longer exists.");
+
+    const ancestors: string[] = [];
+    let current = item.parentId ? state.items[item.parentId] : undefined;
+    while (current) {
+        ancestors.push(current.id);
+        current = current.parentId ? state.items[current.parentId] : undefined;
+    }
+
+    dispatch(actions.openFile(id));
+    for (const ancestorId of ancestors) dispatch(actions.expandFolder(ancestorId));
+    return ok();
+};
 export const closeFileEditor = () => (dispatch: AppDispatch) => { dispatch(actions.closeFileEditor()); return ok(); };
 export const expandFolder = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (!folder(getState().workspace, id)) return fail("That folder no longer exists."); dispatch(actions.expandFolder(id)); return ok(); };
 export const collapseFolder = (id: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (!folder(getState().workspace, id)) return fail("That folder no longer exists."); dispatch(actions.collapseFolder(id)); return ok(); };

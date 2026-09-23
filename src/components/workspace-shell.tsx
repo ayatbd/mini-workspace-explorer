@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { MainPanel } from "@/components/main-panel";
+import { WorkspaceSearch } from "@/components/workspace-search";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import { buildPath } from "@/lib/filesystem";
 import { useEditorNavigation } from "@/state/editor-navigation";
@@ -41,11 +42,7 @@ function Header({ onOpenSidebar }: { onOpenSidebar: () => void }) {
         <span className="brand-mark">✦</span>
         <span>Mini Workspace</span>
       </div>
-      <label className="search-field">
-        <span aria-hidden="true">⌕</span>
-        <input placeholder="Search workspace" type="search" />
-        <kbd>⌘ K</kbd>
-      </label>
+      <WorkspaceSearch />
       <div className="toolbar-actions">
         <button className="toolbar-button" type="button">
           <span>＋</span> New

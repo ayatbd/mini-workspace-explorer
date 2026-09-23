@@ -253,6 +253,133 @@ button {
     font-size: 13px;
 }
 
+.workspace-search {
+    position: relative;
+    width: min(360px, 45%);
+}
+
+.workspace-search .search-field {
+    width: 100%;
+}
+
+.search-results-panel {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    overflow: auto;
+    max-height: min(420px, 70vh);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(23, 35, 31, 0.14);
+}
+
+.search-empty-state {
+    padding: 22px 18px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.search-empty-title {
+    margin: 0 0 6px;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.search-empty-state p {
+    margin: 0;
+}
+
+.search-results-list {
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+}
+
+.search-result {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    gap: 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.search-result:hover,
+.search-result:focus-visible,
+.search-result-active {
+    background: var(--accent-soft);
+}
+
+.search-result-icon {
+    display: grid;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+    place-items: center;
+    border-radius: 7px;
+    font-size: 15px;
+}
+
+.search-result-icon.folder {
+    background: #fff0dc;
+    color: var(--warm);
+}
+
+.search-result-icon.file {
+    background: #e7eff4;
+    color: #6c91a5;
+}
+
+.search-result-body {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.search-result-name {
+    overflow: hidden;
+    color: var(--ink);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+}
+
+.search-result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.search-result-match {
+    color: var(--accent);
+}
+
+.search-result-path {
+    overflow: hidden;
+    color: #8a988f;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+}
+
 .search-field input {
     width: 100%;
     border: 0;
@@ -824,6 +951,24 @@ button {
         width: auto;
         flex: 1;
         margin: 0 16px;
+    }
+
+    .workspace-search {
+        width: auto;
+        flex: 1;
+        margin: 0 16px;
+    }
+
+    .workspace-search .search-field {
+        margin: 0;
+    }
+
+    .search-results-panel {
+        position: fixed;
+        top: 68px;
+        left: 12px;
+        right: 12px;
+        max-height: min(60vh, 420px);
     }
 
     .search-field kbd,
