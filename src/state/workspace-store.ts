@@ -63,7 +63,7 @@ const ok = (): WorkspaceActionResult => ({ success: true });
 const fail = (error: string): WorkspaceActionResult => ({ success: false, error });
 
 function folder(state: WorkspaceState, id: string) { const item = state.items[id]; return item?.type === "folder" ? item : undefined; }
-function nameError(name: string) { const trimmed = name.trim(); if (!trimmed) return "Name cannot be empty."; if (trimmed === "." || trimmed === "..") return "Name cannot be . or ..."; if (/[\\/]/.test(trimmed)) return "Name cannot contain path separators."; return undefined; }
+function nameError(name: string) { const trimmed = name.trim(); if (!trimmed) return "Name cannot be empty."; if (trimmed === "." || trimmed === "..") return "Name cannot be . or .."; if (/[\\/]/.test(trimmed)) return "Name cannot contain path separators."; return undefined; }
 function duplicate(state: WorkspaceState, parentId: string, name: string, ignoredId?: string) { return getChildren({ rootId: state.rootId, items: state.items }, parentId).some((item) => item.id !== ignoredId && item.name.toLowerCase() === name.toLowerCase()); }
 function newId(items: Record<string, FileSystemItem>) { let id = globalThis.crypto?.randomUUID?.(); while (!id || items[id]) id = `item-${Date.now()}-${Math.random().toString(36).slice(2)}`; return id; }
 

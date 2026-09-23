@@ -1,6 +1,14 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 
 import { buildPath, sortChildren } from "@/lib/filesystem";
 import {
@@ -106,13 +114,20 @@ function Breadcrumbs({ folderId }: { folderId: string }) {
 
 function FileListItem({
   item,
+  highlighted,
   onOpen,
 }: {
   item: FileSystemItem;
+  highlighted: boolean;
   onOpen: (item: FileSystemItem) => void;
 }) {
   return (
-    <button className="item-card" onClick={() => onOpen(item)} type="button">
+    <button
+      className={`item-card${highlighted ? " item-card-highlighted" : ""}`}
+      aria-current={highlighted ? "true" : undefined}
+      onClick={() => onOpen(item)}
+      type="button"
+    >
       <span className={`item-icon ${item.type}`} aria-hidden="true">
         {item.type === "folder" ? "▰" : "▤"}
       </span>
@@ -126,15 +141,22 @@ function FileListItem({
 
 function FileList({
   items,
+  highlightedItemId,
   onOpen,
 }: {
   items: FileSystemItem[];
+  highlightedItemId: string | null;
   onOpen: (item: FileSystemItem) => void;
 }) {
   return (
     <div className="item-grid" aria-label="Folder contents">
       {items.map((item) => (
-        <FileListItem item={item} key={item.id} onOpen={onOpen} />
+        <FileListItem
+          item={item}
+          highlighted={item.id === highlightedItemId}
+          key={item.id}
+          onOpen={onOpen}
+        />
       ))}
     </div>
   );
@@ -159,9 +181,11 @@ function EmptyFolderState({ completelyEmpty }: { completelyEmpty: boolean }) {
 function ItemForm({
   type,
   onClose,
+  onCreated,
 }: {
   type: "folder" | "file" | "rename";
   onClose: () => void;
+  onCreated?: (id: string) => void;
 }) {
   const dispatch = useWorkspaceDispatch();
   const selectedFolderId = useWorkspaceSelector(
@@ -174,45 +198,102 @@ function ItemForm({
     type === "rename" ? (selectedItem?.name ?? "") : "",
   );
   const [error, setError] = useState<string | undefined>();
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const title =
+    type === "rename"
+      ? "Rename item"
+      : type === "folder"
+        ? "Create folder"
+        : "Create text file";
+  const nameLabel =
+    type === "rename"
+      ? "New name"
+      : `${type === "folder" ? "Folder" : "Text file"} name`;
+
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
+
+    submittingRef.current = true;
+    setSubmitting(true);
+
     const result =
       type === "folder"
         ? dispatch(createFolder(selectedFolderId, name))
         : type === "file"
           ? dispatch(createTextFile(selectedFolderId, name))
           : dispatch(renameItem(selectedFolderId, name));
-    if (result.success) onClose();
-    else setError(result.error);
+
+    if (result.success) {
+      if (result.value) onCreated?.(result.value);
+      onClose();
+      return;
+    }
+
+    submittingRef.current = false;
+    setSubmitting(false);
+    setError(result.error);
+  }
+
+  function handleFormKeyDown(event: KeyboardEvent<HTMLFormElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+    }
   }
 
   return (
-    <form className="item-form" onSubmit={submit}>
-      <label htmlFor="item-name">
-        {type === "rename"
-          ? "New name"
-          : `${type === "folder" ? "Folder" : "Text file"} name`}
-      </label>
+    <form
+      className="item-form"
+      aria-label={title}
+      onKeyDown={handleFormKeyDown}
+      onSubmit={submit}
+    >
+      <label htmlFor="item-name">{nameLabel}</label>
       <div className="item-form-row">
         <input
           id="item-name"
           autoFocus
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? "item-name-error" : undefined}
+          disabled={submitting}
           value={name}
           onChange={(event) => {
             setName(event.target.value);
             setError(undefined);
           }}
         />
-        <button className="panel-action primary-action" type="submit">
+        <button
+          className="panel-action primary-action"
+          disabled={submitting}
+          type="submit"
+        >
           Save
         </button>
-        <button className="panel-action" onClick={onClose} type="button">
+        <button
+          className="panel-action"
+          disabled={submitting}
+          onClick={onClose}
+          type="button"
+        >
           Cancel
         </button>
       </div>
       {error && (
-        <p className="form-error" role="alert">
+        <p className="form-error" id="item-name-error" role="alert">
           {error}
         </p>
       )}
@@ -233,7 +314,11 @@ export function MainPanel() {
   const [formType, setFormType] = useState<"folder" | "file" | "rename" | null>(
     null,
   );
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(
+    null,
+  );
   const [showSearch, setShowSearch] = useState(false);
+  const closeForm = useCallback(() => setFormType(null), []);
   const folder = items[selectedFolderId];
   const children = useMemo(
     () =>
@@ -252,6 +337,15 @@ export function MainPanel() {
   const isCompletelyEmpty =
     Object.keys(items).length === 1 && selectedFolderId === rootId;
 
+  useEffect(() => {
+    if (
+      highlightedItemId &&
+      !children.some((item) => item.id === highlightedItemId)
+    ) {
+      setHighlightedItemId(null);
+    }
+  }, [children, highlightedItemId]);
+
   if (!folder || folder.type !== "folder") return null;
 
   function handleDelete() {
@@ -260,18 +354,23 @@ export function MainPanel() {
   }
 
   function handleOpen(item: FileSystemItem) {
+    setHighlightedItemId(item.id);
     dispatch(
       item.type === "folder" ? selectFolder(item.id) : openFile(item.id),
     );
+  }
+
+  function openCreateForm(type: "folder" | "file" | "rename") {
+    setFormType(type);
   }
 
   return (
     <section className="content-view" aria-labelledby="folder-title">
       <FolderHeader
         folder={folder}
-        onNewFolder={() => setFormType("folder")}
-        onNewFile={() => setFormType("file")}
-        onRename={() => setFormType("rename")}
+        onNewFolder={() => openCreateForm("folder")}
+        onNewFile={() => openCreateForm("file")}
+        onRename={() => openCreateForm("rename")}
         onDelete={handleDelete}
         onSearch={() => setShowSearch((visible) => !visible)}
       />
@@ -291,7 +390,11 @@ export function MainPanel() {
         </label>
       )}
       {formType && (
-        <ItemForm onClose={() => setFormType(null)} type={formType} />
+        <ItemForm
+          onClose={closeForm}
+          onCreated={setHighlightedItemId}
+          type={formType}
+        />
       )}
       <p className="subheading panel-count">
         {filteredChildren.length}{" "}
@@ -303,7 +406,11 @@ export function MainPanel() {
       ) : filteredChildren.length === 0 ? (
         <EmptyFolderState completelyEmpty={false} />
       ) : (
-        <FileList items={filteredChildren} onOpen={handleOpen} />
+        <FileList
+          items={filteredChildren}
+          highlightedItemId={highlightedItemId}
+          onOpen={handleOpen}
+        />
       )}
     </section>
   );
