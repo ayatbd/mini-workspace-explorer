@@ -684,6 +684,91 @@ button {
     background: var(--ink);
 }
 
+.save-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.save-button-success {
+    background: var(--accent);
+}
+
+.editor-file-name {
+    overflow: hidden;
+    min-width: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editor-status-unsaved {
+    color: var(--warm);
+    font-weight: 700;
+}
+
+.editor-status-saved {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.editor-empty-hint {
+    margin: 0;
+    border-bottom: 1px dashed var(--line);
+    background: #fbfcfa;
+    padding: 10px 22px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+}
+
+.editor-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.dialog-backdrop {
+    position: fixed;
+    z-index: 40;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(23, 35, 31, 0.34);
+}
+
+.confirm-dialog {
+    width: min(420px, 100%);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    padding: 22px;
+    box-shadow: 0 18px 40px rgba(23, 35, 31, 0.18);
+}
+
+.confirm-dialog h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.03em;
+}
+
+.confirm-dialog p {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 @keyframes spin {
     to {
         transform: rotate(360deg);
@@ -758,13 +843,39 @@ button {
         font-size: 31px;
     }
 
-    .folder-header {
+    .folder-header,
+    .file-header {
         display: block;
     }
 
-    .folder-header .panel-actions {
+    .folder-header .panel-actions,
+    .file-header .panel-actions {
         justify-content: flex-start;
         margin-top: 18px;
+    }
+
+    .editor-placeholder textarea {
+        min-height: 280px;
+        padding: 16px;
+        font-size: 14px;
+    }
+
+    .editor-footer-actions {
+        justify-content: stretch;
+    }
+
+    .editor-footer-actions .panel-action,
+    .editor-footer-actions .save-button {
+        flex: 1;
+    }
+
+    .confirm-dialog-actions {
+        flex-direction: column-reverse;
+    }
+
+    .confirm-dialog-actions .panel-action,
+    .confirm-dialog-actions .primary-action {
+        width: 100%;
     }
 
     .panel-action {

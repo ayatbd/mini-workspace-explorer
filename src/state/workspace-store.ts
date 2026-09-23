@@ -58,6 +58,15 @@ const workspaceSlice = createSlice({
         updateFileContent(state, action: PayloadAction<{ fileId: string; content: string }>) { const file = state.items[action.payload.fileId]; if (file?.type === "file") { file.content = action.payload.content; file.updatedAt = new Date().toISOString(); state.editorDraft = null; } },
         setEditorDraft(state, action: PayloadAction<string>) { state.editorDraft = action.payload; },
         resetWorkspace(_state, action: PayloadAction<WorkspaceFileSystem>) { return { ...initialState, items: action.payload.items, rootId: action.payload.rootId, selectedFolderId: action.payload.rootId, expandedFolderIds: [action.payload.rootId] }; },
+        hydrateWorkspace(state, action: PayloadAction<WorkspaceFileSystem>) {
+            state.items = action.payload.items;
+            state.rootId = action.payload.rootId;
+            state.selectedFolderId = action.payload.rootId;
+            state.openedFileId = null;
+            state.editorDraft = null;
+            state.expandedFolderIds = [action.payload.rootId];
+            state.hydrationStatus = "hydrated";
+        },
         setSearchQuery(state, action: PayloadAction<string>) { state.searchQuery = action.payload; },
         setStatusMessage(state, action: PayloadAction<string | null>) { state.statusMessage = action.payload; },
     },
@@ -162,6 +171,10 @@ export const deleteItem = (itemId: string) => (dispatch: AppDispatch, getState: 
 export const updateFileContent = (fileId: string, content: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (getState().workspace.items[fileId]?.type !== "file") return fail("That text file no longer exists."); dispatch(actions.updateFileContent({ fileId, content })); return ok(); };
 export const setEditorDraft = (content: string) => (dispatch: AppDispatch, getState: () => RootState) => { if (!getState().workspace.openedFileId) return fail("Open a text file before editing."); dispatch(actions.setEditorDraft(content)); return ok(); };
 export const resetWorkspace = (workspace = starterWorkspace) => (dispatch: AppDispatch) => { dispatch(actions.resetWorkspace(workspace)); return ok(); };
+export const hydrateWorkspace = (workspace: WorkspaceFileSystem) => (dispatch: AppDispatch) => {
+    dispatch(actions.hydrateWorkspace(workspace));
+    return ok();
+};
 export const setSearchQuery = (query: string) => (dispatch: AppDispatch) => { dispatch(actions.setSearchQuery(query)); return ok(); };
 export const setStatusMessage = (message: string | null) => (dispatch: AppDispatch) => {
     dispatch(actions.setStatusMessage(message));

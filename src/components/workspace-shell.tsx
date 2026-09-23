@@ -11,11 +11,17 @@ import {
 
 import { MainPanel } from "@/components/main-panel";
 import { WorkspaceSidebar } from "@/components/workspace-sidebar";
+import { buildPath } from "@/lib/filesystem";
+import { useEditorNavigation } from "@/state/editor-navigation";
 import { useWorkspace } from "@/state/workspace-context";
 import {
+  closeFileEditor,
   confirmAndDeleteItem,
   renameItem,
+  selectFolder,
+  setEditorDraft,
   setStatusMessage,
+  updateFileContent,
   useWorkspaceDispatch,
   useWorkspaceSelector,
 } from "@/state/workspace-store";
@@ -176,29 +182,138 @@ function RenameFileForm({
   );
 }
 
+function FileBreadcrumbs({
+  fileId,
+  onNavigateFolder,
+}: {
+  fileId: string;
+  onNavigateFolder: (folderId: string) => void;
+}) {
+  const items = useWorkspaceSelector((state) => state.workspace.items);
+  const rootId = useWorkspaceSelector((state) => state.workspace.rootId);
+  const file = items[fileId];
+  const path = file ? buildPath({ rootId, items }, file) : [];
+
+  return (
+    <nav className="breadcrumb" aria-label="File location">
+      {path.map((item, index) => {
+        const isLast = index === path.length - 1;
+        return (
+          <span className="breadcrumb-segment" key={item.id}>
+            {index > 0 && <span aria-hidden="true">/</span>}
+            {isLast || item.type === "file" ? (
+              <strong className="breadcrumb-current">{item.name}</strong>
+            ) : (
+              <button
+                onClick={() => onNavigateFolder(item.id)}
+                type="button"
+              >
+                {item.name}
+              </button>
+            )}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
 function FileView() {
   const { selectedItem } = useWorkspace();
   const dispatch = useWorkspaceDispatch();
+  const { requestNavigation } = useEditorNavigation();
+  const rootId = useWorkspaceSelector((state) => state.workspace.rootId);
+  const editorDraft = useWorkspaceSelector(
+    (state) => state.workspace.editorDraft,
+  );
   const [isRenaming, setIsRenaming] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const closeRename = useCallback(() => setIsRenaming(false), []);
+
+  const savedContent = selectedItem.content ?? "";
+  const value = editorDraft ?? savedContent;
+  const isDirty = editorDraft !== null && editorDraft !== savedContent;
+  const isEmpty = value.length === 0;
+
+  useEffect(() => {
+    if (isDirty) setJustSaved(false);
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = window.setTimeout(() => setJustSaved(false), 2500);
+    return () => window.clearTimeout(timer);
+  }, [justSaved]);
 
   function handleDelete() {
     confirmAndDeleteItem(selectedItem, 0, dispatch);
   }
 
+  function handleChange(content: string) {
+    dispatch(setEditorDraft(content));
+  }
+
+  function handleSave() {
+    if (!isDirty) return;
+
+    const result = dispatch(updateFileContent(selectedItem.id, value));
+    if (result.success) {
+      setJustSaved(true);
+      dispatch(setStatusMessage(`Saved "${selectedItem.name}".`));
+      return;
+    }
+
+    dispatch(setStatusMessage(result.error ?? "Could not save that file."));
+  }
+
+  function leaveEditor() {
+    const parentId = selectedItem.parentId ?? rootId;
+    requestNavigation(() => {
+      dispatch(selectFolder(parentId));
+    });
+  }
+
+  function navigateToFolder(folderId: string) {
+    requestNavigation(() => {
+      dispatch(selectFolder(folderId));
+    });
+  }
+
+  const statusLabel = justSaved
+    ? "Saved"
+    : isDirty
+      ? "Unsaved changes"
+      : "No unsaved changes";
+  const statusClass = justSaved
+    ? "editor-status editor-status-saved"
+    : isDirty
+      ? "editor-status editor-status-unsaved"
+      : "editor-status";
+
   return (
     <section className="content-view file-view">
-      <div className="content-heading">
+      <div className="content-heading file-header">
         <div>
-          <p className="breadcrumb">
-            <span>Workspace</span>
-            <span>/</span>
-            <strong>{selectedItem.name}</strong>
-          </p>
+          <FileBreadcrumbs
+            fileId={selectedItem.id}
+            onNavigateFolder={navigateToFolder}
+          />
           <h1>{selectedItem.name}</h1>
-          <p className="subheading">Text file · Ready to edit</p>
+          <p className="subheading">
+            Text file ·{" "}
+            {justSaved
+              ? "All changes saved"
+              : isDirty
+                ? "Editing — unsaved changes"
+                : isEmpty
+                  ? "Empty file"
+                  : "Ready to edit"}
+          </p>
         </div>
         <div className="panel-actions" aria-label="File actions">
+          <button className="panel-action" onClick={leaveEditor} type="button">
+            Back
+          </button>
           <button
             className="panel-action"
             onClick={() => setIsRenaming(true)}
@@ -213,8 +328,13 @@ function FileView() {
           >
             Delete
           </button>
-          <button className="save-button" type="button">
-            Save changes
+          <button
+            className={`save-button${justSaved && !isDirty ? " save-button-success" : ""}`}
+            disabled={!isDirty}
+            onClick={handleSave}
+            type="button"
+          >
+            {justSaved && !isDirty ? "Saved" : "Save changes"}
           </button>
         </div>
       </div>
@@ -228,13 +348,36 @@ function FileView() {
       <div className="editor-placeholder">
         <div className="editor-bar">
           <span className="file-dot" />
-          {selectedItem.name}
-          <span className="editor-status">No unsaved changes</span>
+          <span className="editor-file-name">{selectedItem.name}</span>
+          <span className={statusClass} role="status">
+            {statusLabel}
+          </span>
         </div>
+        {isEmpty && (
+          <p className="editor-empty-hint">
+            This file is empty. Start typing to add content.
+          </p>
+        )}
         <textarea
-          defaultValue={selectedItem.content ?? ""}
+          value={value}
+          onChange={(event) => handleChange(event.target.value)}
+          placeholder="Start typing…"
           aria-label={`Edit ${selectedItem.name}`}
+          spellCheck
         />
+      </div>
+      <div className="editor-footer-actions">
+        <button className="panel-action" onClick={leaveEditor} type="button">
+          Cancel
+        </button>
+        <button
+          className={`save-button${justSaved && !isDirty ? " save-button-success" : ""}`}
+          disabled={!isDirty}
+          onClick={handleSave}
+          type="button"
+        >
+          {justSaved && !isDirty ? "Saved" : "Save changes"}
+        </button>
       </div>
     </section>
   );
@@ -242,7 +385,21 @@ function FileView() {
 
 export function WorkspaceShell() {
   const { view } = useWorkspace();
+  const dispatch = useWorkspaceDispatch();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const openedFileId = useWorkspaceSelector(
+    (state) => state.workspace.openedFileId,
+  );
+  const openedFile = useWorkspaceSelector((state) =>
+    openedFileId ? state.workspace.items[openedFileId] : undefined,
+  );
+
+  // Belt-and-suspenders: if the open file disappears, close the editor safely.
+  useEffect(() => {
+    if (openedFileId && (!openedFile || openedFile.type !== "file")) {
+      dispatch(closeFileEditor());
+    }
+  }, [dispatch, openedFile, openedFileId]);
 
   return (
     <div className="app-shell">

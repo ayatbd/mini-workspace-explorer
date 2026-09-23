@@ -10,6 +10,8 @@ import {
   renameItem,
   resetWorkspace,
   selectFolder,
+  setEditorDraft,
+  updateFileContent,
   workspaceReducer,
 } from "@/state/workspace-store";
 
@@ -278,5 +280,65 @@ describe("renameItem / deleteItem", () => {
       error: "The workspace folder cannot be renamed.",
     });
     expect(store.getState().workspace.items[ROOT_ID]?.name).toBe("Workspace");
+  });
+});
+
+describe("text file editor content", () => {
+  let store: ReturnType<typeof createTestStore>;
+
+  beforeEach(() => {
+    store = createTestStore();
+  });
+
+  it("saves draft content onto the file and clears the draft", () => {
+    const file = store.dispatch(createTextFile(ROOT_ID, "notes.txt", "hello"));
+    expect(file.success).toBe(true);
+
+    store.dispatch(openFile(file.value!));
+    store.dispatch(setEditorDraft("hello world"));
+
+    expect(store.getState().workspace.editorDraft).toBe("hello world");
+
+    const result = store.dispatch(updateFileContent(file.value!, "hello world"));
+
+    expect(result.success).toBe(true);
+    const state = store.getState().workspace;
+    expect(state.items[file.value!]?.content).toBe("hello world");
+    expect(state.editorDraft).toBeNull();
+  });
+
+  it("keeps saved content after renaming the open file", () => {
+    const file = store.dispatch(
+      createTextFile(ROOT_ID, "draft.txt", "keep me"),
+    );
+    expect(file.success).toBe(true);
+    store.dispatch(openFile(file.value!));
+
+    const renamed = store.dispatch(renameItem(file.value!, "final.txt"));
+    expect(renamed.success).toBe(true);
+
+    const state = store.getState().workspace;
+    expect(state.openedFileId).toBe(file.value);
+    expect(state.items[file.value!]).toMatchObject({
+      name: "final.txt",
+      content: "keep me",
+    });
+  });
+
+  it("preserves saved file content when selecting another folder", () => {
+    const folder = store.dispatch(createFolder(ROOT_ID, "Docs"));
+    const file = store.dispatch(
+      createTextFile(folder.value!, "memo.txt", "persisted"),
+    );
+    expect(folder.success).toBe(true);
+    expect(file.success).toBe(true);
+
+    store.dispatch(openFile(file.value!));
+    store.dispatch(updateFileContent(file.value!, "updated body"));
+    store.dispatch(selectFolder(ROOT_ID));
+
+    const state = store.getState().workspace;
+    expect(state.openedFileId).toBeNull();
+    expect(state.items[file.value!]?.content).toBe("updated body");
   });
 });

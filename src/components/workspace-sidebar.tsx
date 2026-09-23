@@ -3,6 +3,7 @@
 import { useMemo, type CSSProperties, type KeyboardEvent } from "react";
 
 import { sortChildren } from "@/lib/filesystem";
+import { useEditorNavigation } from "@/state/editor-navigation";
 import {
   selectFolder,
   toggleFolderExpansion,
@@ -19,6 +20,7 @@ function FolderTreeItem({
   depth: number;
 }) {
   const dispatch = useWorkspaceDispatch();
+  const { requestNavigation } = useEditorNavigation();
   const items = useWorkspaceSelector((state) => state.workspace.items);
   const selectedFolderId = useWorkspaceSelector(
     (state) => state.workspace.selectedFolderId,
@@ -40,7 +42,9 @@ function FolderTreeItem({
   const hasChildren = children.length > 0;
 
   function handleSelectFolder() {
-    dispatch(selectFolder(item.id));
+    requestNavigation(() => {
+      dispatch(selectFolder(item.id));
+    });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLButtonElement>) {

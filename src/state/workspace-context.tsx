@@ -1,10 +1,16 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useEffect, type ReactNode } from "react";
 import { Provider } from "react-redux";
 
+import {
+  loadPersistedWorkspace,
+  savePersistedWorkspace,
+} from "@/lib/workspace-persistence";
+import { EditorNavigationProvider, useEditorNavigation } from "@/state/editor-navigation";
 import { store } from "@/state/store";
 import {
+  hydrateWorkspace,
   openFile,
   selectFolder,
   useWorkspaceDispatch,
@@ -23,13 +29,43 @@ const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   return (
     <Provider store={store}>
-      <WorkspaceContextBridge>{children}</WorkspaceContextBridge>
+      <WorkspacePersistenceBridge>
+        <EditorNavigationProvider>
+          <WorkspaceContextBridge>{children}</WorkspaceContextBridge>
+        </EditorNavigationProvider>
+      </WorkspacePersistenceBridge>
     </Provider>
   );
 }
 
+function WorkspacePersistenceBridge({ children }: { children: ReactNode }) {
+  const dispatch = useWorkspaceDispatch();
+
+  useEffect(() => {
+    const persisted = loadPersistedWorkspace();
+    if (persisted) {
+      dispatch(hydrateWorkspace(persisted));
+    }
+
+    let lastSerialized = "";
+    return store.subscribe(() => {
+      const state = store.getState().workspace;
+      const serialized = JSON.stringify({
+        rootId: state.rootId,
+        items: state.items,
+      });
+      if (serialized === lastSerialized) return;
+      lastSerialized = serialized;
+      savePersistedWorkspace({ rootId: state.rootId, items: state.items });
+    });
+  }, [dispatch]);
+
+  return children;
+}
+
 function WorkspaceContextBridge({ children }: { children: ReactNode }) {
   const dispatch = useWorkspaceDispatch();
+  const { requestNavigation } = useEditorNavigation();
   const selectedFolderId = useWorkspaceSelector(
     (state) => state.workspace.selectedFolderId,
   );
@@ -49,9 +85,11 @@ function WorkspaceContextBridge({ children }: { children: ReactNode }) {
         selectedItem,
         view,
         selectItem: (item) => {
-          dispatch(
-            item.type === "file" ? openFile(item.id) : selectFolder(item.id),
-          );
+          requestNavigation(() => {
+            dispatch(
+              item.type === "file" ? openFile(item.id) : selectFolder(item.id),
+            );
+          });
         },
       }}
     >
