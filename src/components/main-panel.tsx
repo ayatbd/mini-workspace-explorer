@@ -43,7 +43,7 @@ function FolderHeader({
   const isRoot = folder.parentId === null;
 
   return (
-    <div className="content-heading folder-header">
+    <div className="content-heading folder-header space-x-12">
       <div>
         <Breadcrumbs folderId={folder.id} />
         <h1>{folder.name}</h1>
